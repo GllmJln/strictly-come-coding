@@ -425,7 +425,7 @@ class CreateMeasurement:
 
     stations = pl.DataFrame(STATIONS, ("names", "means"), orient="row")
 
-    def __init__(self, seed: int | None = None):
+    def __init__(self, seed = None):
         if seed is not None:
             print(f"Intialising with seed {seed}")
             np.random.seed(seed)
@@ -438,7 +438,7 @@ class CreateMeasurement:
             self,
             std_dev: float = 10,
             records: int = 10_000_000,
-            seed: int | None = None,
+            seed = None,
             batch_no: int = -1,
     ) -> pl.DataFrame:
 
@@ -456,7 +456,7 @@ class CreateMeasurement:
             self,
             file_name: str = "measurements.txt",
             records: int = 1_000_000_000,
-            seed: int | None = None,
+            seed = None,
             sep: str = ";",
             std_dev: float = 10,
     ) -> None:
