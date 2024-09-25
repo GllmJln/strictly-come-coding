@@ -20,7 +20,6 @@ jobs:
       - run: pip install -r requirements.txt
       - run: |
           python3 createMeasurements.py --seed 1234 -r 10000000
-      # change this
       - uses: actions/setup-go@v5
         with:
           go-version: ">=1.23"

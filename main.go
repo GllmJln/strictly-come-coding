@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"sync"
+)
+
+var (
+	posMu   = &sync.Mutex{}
+	workers = runtime.NumCPU()
 )
 
 type city struct {
@@ -16,6 +22,11 @@ type city struct {
 	min   int32
 	max   int32
 	name  []byte
+}
+
+type readPos struct {
+	start int64
+	end   int64
 }
 
 const (
@@ -34,29 +45,25 @@ func main() {
 	}
 	defer file.Close()
 
-	chunks := 1
+	cityResChan := make(chan city, 1000)
+	posChan := make(chan *readPos, 5)
 
-	s, _ := file.Stat()
-	size := s.Size() / int64(chunks)
-
-	resChan := make(chan city, 1000)
+	go getReadPositions(file, posChan)
 
 	wg := &sync.WaitGroup{}
-
-	wg.Add(chunks)
-
-	for i := 0; i < chunks; i++ {
-		go processChunk(file, size*int64(i), size, resChan, wg)
+	wg.Add(workers)
+	for pos := range posChan {
+		go processChunk(file, pos.start, pos.end, cityResChan, wg)
 	}
 
 	go func() {
 		wg.Wait()
-		close(resChan)
+		close(cityResChan)
 	}()
 
 	resultsMap := map[string]city{}
 
-	for city := range resChan {
+	for city := range cityResChan {
 		c, ok := resultsMap[string(city.name)]
 		if !ok {
 			resultsMap[string(city.name)] = city
@@ -68,7 +75,7 @@ func main() {
 			c.max = city.max
 		}
 		if c.min > city.min {
-			c.min = city.max
+			c.min = city.min
 		}
 		resultsMap[string(city.name)] = c
 	}
@@ -113,9 +120,29 @@ func main() {
 	}
 }
 
+func getReadPositions(file *os.File, res chan *readPos) {
+	s, _ := file.Stat()
+	chunkSize := s.Size() / int64(workers)
+
+	start := int64(0)
+	buf := make([]byte, 100)
+
+	for start < s.Size() {
+		file.Seek(start+chunkSize, 0)
+		n, _ := file.Read(buf)
+		if n != 0 {
+			n = bytes.IndexByte(buf[:n], '\n') + 1
+		}
+		end := start + chunkSize + int64(n)
+		res <- &readPos{start: start, end: end}
+		start = end
+	}
+
+	close(res)
+}
+
 func processChunk(file *os.File, offset, size int64, res chan city, wg *sync.WaitGroup) {
 	defer wg.Done()
-
 	file.Seek(offset, 0)
 	rdr := io.LimitReader(file, size)
 
@@ -125,43 +152,39 @@ func processChunk(file *os.File, offset, size int64, res chan city, wg *sync.Wai
 
 	start := 0
 
-	var done bool
-	for !done {
+	outerLoopIdx := 0
+
+	read := int64(0)
+
+	for {
+		// todo: remove this lock and use io.ReaderAt
+		posMu.Lock()
+		file.Seek(offset+read, 0)
 		n, err := rdr.Read(buf[start:])
-		if err != nil && err != io.EOF {
-			return
+		posMu.Unlock()
+		read += int64(n)
+		if err != nil {
+			break
 		}
 
 		chunk := buf[:start+n]
 
 		idx := bytes.LastIndexByte(chunk, '\n')
 
-		// read next new line
 		if idx == -1 {
-			buf = make([]byte, 100)
-			file.Read(buf)
-			idx = bytes.LastIndexByte(buf, '\n')
-			chunk = buf
-			done = true
+			break
 		}
 
 		remaining := chunk[idx+1:]
 
-		// fist line picked up by previous routine, unless there isn't one
-		if start == 0 && offset != 0 {
-			continue
-		}
-
 		chunk = chunk[:idx+1]
 
 		for {
-
 			var name, rawTemp []byte
 			// fnv
 			hash := uint32(offset32)
 			idx := 0
 			for {
-
 				if idx > len(chunk) {
 					break
 				}
@@ -244,6 +267,7 @@ func processChunk(file *os.File, offset, size int64, res chan city, wg *sync.Wai
 		}
 
 		start = copy(buf, remaining)
+		outerLoopIdx++
 	}
 
 	for i := range cityMap {
