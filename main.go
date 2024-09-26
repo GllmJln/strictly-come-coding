@@ -31,7 +31,7 @@ type readPos struct {
 const (
 	offset32 = 2166136261
 	prime32  = 16777619
-	mapSize  = 1 << 15
+	mapSize  = 1 << 16
 	fileName = "measurements.txt"
 )
 
