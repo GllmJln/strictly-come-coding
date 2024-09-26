@@ -12,7 +12,6 @@ import (
 )
 
 var (
-	posMu   = &sync.Mutex{}
 	workers = runtime.NumCPU()
 )
 
@@ -33,27 +32,20 @@ const (
 	offset32 = 2166136261
 	prime32  = 16777619
 	mapSize  = 1 << 15
+	fileName = "measurements.txt"
 )
 
 func main() {
-	fileName := "measurements.txt"
-
-	file, err := os.Open(fileName)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
-	defer file.Close()
 
 	cityResChan := make(chan city, 1000)
 	posChan := make(chan *readPos, 5)
 
-	go getReadPositions(file, posChan)
+	go getReadPositions(posChan)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(workers)
 	for pos := range posChan {
-		go processChunk(file, pos.start, pos.end, cityResChan, wg)
+		go processChunk(pos.start, pos.end, cityResChan, wg)
 	}
 
 	go func() {
@@ -120,7 +112,14 @@ func main() {
 	}
 }
 
-func getReadPositions(file *os.File, res chan *readPos) {
+func getReadPositions(res chan *readPos) {
+	file, err := os.Open(fileName)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+
 	s, _ := file.Stat()
 	chunkSize := s.Size() / int64(workers)
 
@@ -141,8 +140,15 @@ func getReadPositions(file *os.File, res chan *readPos) {
 	close(res)
 }
 
-func processChunk(file *os.File, offset, size int64, res chan city, wg *sync.WaitGroup) {
+func processChunk(offset, size int64, res chan city, wg *sync.WaitGroup) {
 	defer wg.Done()
+	file, err := os.Open(fileName)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+
 	file.Seek(offset, 0)
 	rdr := io.LimitReader(file, size)
 
@@ -152,17 +158,8 @@ func processChunk(file *os.File, offset, size int64, res chan city, wg *sync.Wai
 
 	start := 0
 
-	outerLoopIdx := 0
-
-	read := int64(0)
-
 	for {
-		// todo: remove this lock and use io.ReaderAt
-		posMu.Lock()
-		file.Seek(offset+read, 0)
 		n, err := rdr.Read(buf[start:])
-		posMu.Unlock()
-		read += int64(n)
 		if err != nil {
 			break
 		}
@@ -267,7 +264,6 @@ func processChunk(file *os.File, offset, size int64, res chan city, wg *sync.Wai
 		}
 
 		start = copy(buf, remaining)
-		outerLoopIdx++
 	}
 
 	for i := range cityMap {
