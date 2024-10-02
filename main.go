@@ -132,9 +132,8 @@ func getReadPositions(res chan *readPos) {
 		if n != 0 {
 			n = bytes.IndexByte(buf[:n], '\n') + 1
 		}
-		end := start + chunkSize + int64(n)
-		res <- &readPos{start: start, end: end}
-		start = end
+		res <- &readPos{start: start, end: chunkSize + int64(n)}
+		start += chunkSize + int64(n)
 	}
 
 	close(res)
