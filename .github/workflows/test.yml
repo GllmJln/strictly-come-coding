@@ -8,9 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      binary: ${{steps.build.outputs.binary}}
-      measurements: ${{steps.build.outputs.measurements}}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
