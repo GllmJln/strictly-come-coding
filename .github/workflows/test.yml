@@ -31,7 +31,7 @@ jobs:
       - name: Upload binary artifact
         uses: actions/upload-artifact@v3
         with:
-          name: binary
+          name: 1brc
           path: ./1brc
           retention-days: 1
 
@@ -56,7 +56,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
       - run: |
-          time make run > runtime_${{matrix.attempt}}.txt
+          time ./1brc > runtime_${{matrix.attempt}}.txt
 
       - name: Upload the runtime as an artifact
         uses: actions/upload-artifact@v3
