@@ -23,7 +23,6 @@ jobs:
           name: measurements
           path: ./measurements.txt
           retention-days: 1
-      - run:
       - uses: actions/setup-go@v5
         with:
           go-version: ">=1.23"
