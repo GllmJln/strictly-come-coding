@@ -159,7 +159,7 @@ func processChunk(offset, size int64, res chan city, wg *sync.WaitGroup) {
 
 	for {
 		n, err := rdr.Read(buf[start:])
-		if err != nil {
+		if err != nil && err != io.EOF {
 			break
 		}
 
